@@ -121,8 +121,8 @@ func (i *Installer) Install(capFile *os.File, overwriteApplet bool, installKeyca
 		}
 	}
 
-	elapsed := time.Now().Sub(startTime)
-	logger.Info(fmt.Sprintf("installation completed in %f seconds", elapsed.Seconds()))
+	elapsed := time.Since(startTime)
+	logger.Info(fmt.Sprintf("installation completed in %.4f seconds", elapsed.Seconds()))
 	return err
 }
 
