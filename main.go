@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	stdlog "log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -21,23 +21,35 @@ var version string
 
 type commandFunc func(*scard.Card) error
 
-var (
-	logger = log.New("package", "keycard-cli")
-)
+var logger log.Logger
 
 func initLogger(logLevel string) {
 	if logLevel == "" {
 		logLevel = "info"
 	}
 
-	level, err := log.LvlFromString(strings.ToLower(logLevel))
-	if err != nil {
-		stdlog.Fatal(err)
+	var level slog.Level
+	switch strings.ToLower(logLevel) {
+	case "debug":
+		level = log.LevelDebug
+	case "info":
+		level = log.LevelInfo
+	case "warn":
+		level = log.LevelWarn
+	case "error":
+		level = log.LevelError
+	default:
+		// Set up a basic logger first to ensure we can log the error
+		handler := log.NewTerminalHandlerWithLevel(os.Stderr, log.LevelError, true)
+		log.SetDefault(log.NewLogger(handler))
+		logger = log.New("package", "keycard-cli")
+		log.Error("invalid log level", "level", logLevel)
+		return
 	}
 
-	handler := log.StreamHandler(os.Stderr, log.TerminalFormat(true))
-	filteredHandler := log.LvlFilterHandler(level, handler)
-	log.Root().SetHandler(filteredHandler)
+	handler := log.NewTerminalHandlerWithLevel(os.Stderr, level, true)
+	log.SetDefault(log.NewLogger(handler))
+	logger = log.New("package", "keycard-cli")
 }
 
 func main() {
@@ -50,7 +62,7 @@ func main() {
 				Name:    "log-level",
 				Aliases: []string{"l"},
 				Value:   "info",
-				Usage:   `Log level, one of: "error", "warn", "info", "debug", and "trace"`,
+				Usage:   `Log level, one of: "error", "warn", "info" and "debug"`,
 			},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
@@ -124,7 +136,7 @@ func main() {
 	}
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		stdlog.Fatal(err)
+		log.Error("application error", "error", err)
 	}
 }
 
@@ -291,7 +303,7 @@ func ask(description string) string {
 	fmt.Printf("%s: ", description)
 	text, err := r.ReadString('\n')
 	if err != nil {
-		stdlog.Fatal(err)
+		log.Error("error reading input", "error", err)
 	}
 
 	return strings.TrimSpace(text)
@@ -305,7 +317,7 @@ func askHex(description string) []byte {
 
 	data, err := hex.DecodeString(s)
 	if err != nil {
-		stdlog.Fatal(err)
+		log.Error("error decoding hex", "error", err)
 	}
 
 	return data
@@ -315,7 +327,7 @@ func askInt(description string) int {
 	s := ask(description)
 	i, err := strconv.ParseInt(s, 10, 8)
 	if err != nil {
-		stdlog.Fatal(err)
+		log.Error("error parsing integer", "error", err)
 	}
 
 	return int(i)
